@@ -1,5 +1,21 @@
 import time
-import copy 
+from collections import deque
+
+MOVES = (('u', -1, 0),
+         ('d', 1, 0),
+         ('l', 0, -1),
+         ('r', 0, 1))
+
+class Solver:
+    def initalize(self, width, height, walls, goals, dead):
+        self.width = width
+        self.height = height
+        self.walls = walls
+        self.goals = goals
+        self.dead = dead
+
+    def successors(self, player, crates):
+        
 
 class SokoBot:
     def isGoal(crates, goals):
