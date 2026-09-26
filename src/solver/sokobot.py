@@ -73,6 +73,56 @@ class Solver:
 
         return dist
 
+    def aStar(self, startState):
+        startCrates = startState[1]
+
+        startH = self.heuristic(startCrates)
+
+        if self.isGoal(startCrates):
+            return ""
+        if startH == float('inf'):
+            return ""
+
+        counter = 0
+
+        frontier = []
+        heapq.heappush(frontier, (startH, counter, 0, startState))
+
+        bestG = {startState: 0}
+        parent = {startState: None}
+        expanded = 0
+
+        while frontier:
+            f, _, g, state = heapq.heappop(frontier)
+            if g > bestG[state]:
+                continue
+
+            expanded += 1
+
+            if self.isGoal(state[1]):
+                print("expanded", expanded, file=sys.stderr)
+                return self.rebuildPath(parent, state)
+
+            player, crates = state
+
+            for moveChar, child in self.successors(player, crates):
+                newG = g + 1
+                if not newG < bestG.get(child, float('inf')):
+                    continue
+
+                h = self.heuristic(child[1])
+                if h == float('inf'):
+                    continue
+
+                bestG[child] = newG
+                parent[child] = (state, moveChar)
+
+                counter += 1
+
+                heapq.heappush(frontier, (newG + h, counter, newG, child))
+
+        return ""
+
     def heuristic(self, crates):
         total = 0
         for crate in crates:
@@ -100,11 +150,23 @@ class Solver:
             for cell, d in table.items():
                 self.minDist[cell] = min(d, self.minDist.get(cell, float('inf')))
 
+    def isGoal(self, crates):
+        return crates <= self.goals
+
+    def rebuildPath(self, parent, goalState):
+        moves = []
+        state = goalState
+
+        while parent[state] is not None:
+            previousState, moveChar = parent[state]
+            moves.append(moveChar)
+            state = previousState
+
+        moves.reverse()
+        return ''.join(moves)
+
 
 class SokoBot:
-    @staticmethod
-    def isGoal(crates, goals):
-        return crates <= goals
     def solveSokobanPuzzle(self, width, height, mapData, itemsData):
         # YOU NEED TO REWRITE THE IMPLEMENTATION OF THIS METHOD TO MAKE THE BOT SMARTER
         # Default stupid behavior: Think (sleep) for 3 seconds, and then return a
@@ -135,7 +197,7 @@ class SokoBot:
         solver = Solver(width, height, walls, goals)
         startState = (player, frozenset(crates))
 
-        return ""
+        return solver.aStar(startState)
 
     
         
