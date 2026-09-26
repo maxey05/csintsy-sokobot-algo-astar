@@ -15,6 +15,8 @@ class Solver:
         self.walls = walls
         self.goals = goals
         self.dead = dead or set()
+        self.minDist = {}
+        self.buildDistanceTable()
 
     def successors(self, player, crates):
         result = []
@@ -37,11 +39,72 @@ class Solver:
 
         return result
 
+    def manhattanH(self, crates):
+        total = 0
+
+        for crate in crates:
+            best = float('inf')
+            for goal in self.goals:
+                dist = abs(crate[0] - goal[0]) + abs(crate[1] - goal[1])
+                if dist < best:
+                    best = dist
+
+            total += best
+
+        return total
+
+    def bfsFromGoal(self, goal):
+        dist = {goal: 0}
+        queue = deque([goal])
+
+        while queue:
+            cell = queue.popleft()
+            for _, d_row, d_col in MOVES:
+                newCell = (cell[0] - d_row, cell[1] - d_col)
+                playerCell = (cell[0] - 2 * d_row, cell[1] - 2 * d_col)
+
+                if not (self.isValidCell(newCell) and self.isValidCell(playerCell)):
+                    continue
+                if newCell in dist:
+                    continue
+
+                dist[newCell] = dist[cell] + 1
+                queue.append(newCell)
+
+        return dist
+
+    def heuristic(self, crates):
+        total = 0
+        for crate in crates:
+            d = self.minDist.get(crate)
+
+            if d == None:
+                return float('inf')
+
+            total += d
+
+        return total
+
+    def isValidCell(self, cell):
+        row, col = cell
+        if not (0 <= row < self.height and 0 <= col < self.width):
+            return False
+        if cell in self.walls:
+            return False
+
+        return True
+
+    def buildDistanceTable(self):
+        for goal in self.goals:
+            table = self.bfsFromGoal(goal)
+            for cell, d in table.items():
+                self.minDist[cell] = min(d, self.minDist.get(cell, float('inf')))
+
+
 class SokoBot:
     @staticmethod
     def isGoal(crates, goals):
         return crates <= goals
-
     def solveSokobanPuzzle(self, width, height, mapData, itemsData):
         # YOU NEED TO REWRITE THE IMPLEMENTATION OF THIS METHOD TO MAKE THE BOT SMARTER
         # Default stupid behavior: Think (sleep) for 3 seconds, and then return a
