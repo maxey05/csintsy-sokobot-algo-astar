@@ -1,4 +1,6 @@
 import time
+import heapq
+import sys
 from collections import deque
 
 MOVES = (('u', -1, 0),
@@ -7,17 +9,36 @@ MOVES = (('u', -1, 0),
          ('r', 0, 1))
 
 class Solver:
-    def initalize(self, width, height, walls, goals, dead):
+    def __init__(self, width, height, walls, goals, dead=None):
         self.width = width
         self.height = height
         self.walls = walls
         self.goals = goals
-        self.dead = dead
+        self.dead = dead or set()
 
     def successors(self, player, crates):
-        
+        result = []
+        for char, d_row, d_col in MOVES:
+            target = (player[0] + d_row, player[1] + d_col)
+
+            if target in self.walls:
+                continue
+
+            if target not in crates:
+                newState = (target, crates)
+                result.append((char, newState))
+            else:
+                beyond = (target[0] + d_row, target[1] + d_col)
+                if beyond in self.walls or beyond in crates:
+                    continue
+                newCrates = (crates - {target}) | {beyond}
+                newState = (target, newCrates)
+                result.append((char, newState))
+
+        return result
 
 class SokoBot:
+    @staticmethod
     def isGoal(crates, goals):
         return crates <= goals
 
@@ -44,11 +65,14 @@ class SokoBot:
                 elif mapData[i][j] == '.':
                     goals.add((i, j))
                 if itemsData[i][j] == '$':
-                    crates.add(i, j)
+                    crates.add((i, j))
                 elif itemsData[i][j] == '@':
                     player = ((i, j))
 
-        start = (player, frozenset(crates))
+        solver = Solver(width, height, walls, goals)
+        startState = (player, frozenset(crates))
+
+        return ""
 
     
         
