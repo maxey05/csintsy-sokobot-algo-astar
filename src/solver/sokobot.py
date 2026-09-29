@@ -79,7 +79,7 @@ class Solver:
         return dist
 
     def aStar(self, startState):
-        startCrates = startState[1]
+        startPlayer, startCrates = startState
 
         startH = self.heuristic(startCrates)
 
@@ -88,40 +88,42 @@ class Solver:
         if startH == float('inf'):
             return ""
 
+        startReach = self.reachable(startPlayer, startCrates)
+        startKey = self.canonicalKey(startReach, startCrates)
+
         counter = 0
-
-        frontier = []
-        heapq.heappush(frontier, (startH, counter, 0, startState))
-
-        bestG = {startState: 0}
-        parent = {startState: None}
+        frontier = [(startH, counter, 0, startState)]
+        bestG = {startKey : 0}
+        parent = {startKey : None}
         expanded = 0
 
         while frontier:
             f, _, g, state = heapq.heappop(frontier)
-            if g > bestG[state]:
-                continue
-
-            expanded += 1
-
-            if self.isGoal(state[1]):
-                print("expanded", expanded, file=sys.stderr)
-                return self.rebuildPath(parent, state)
-
             player, crates = state
+            reach = self.reachable(player, crates)
+            key = self.canonicalKey(reach, crates)
 
-            for moveChar, child in self.successors(player, crates):
-                newG = g + 1
-                if not newG < bestG.get(child, float('inf')):
+            if g > bestG[key]:
+                continue
+            expanded += 1
+            if self.isGoal(crates):
+                return self.rebuildPath(parent, key)
+
+            for segment, child in self.pushSuccessors(crates, reach):
+                childPlayer, childCrates = child
+                newG = g + len(segment)
+                childReach = self.reachable(childPlayer, childCrates)
+                childKey = self.canonicalKey(childReach, childCrates)
+
+                if newG >= bestG.get(childKey, float('inf')):
                     continue
 
-                h = self.heuristic(child[1])
+                h = self.heuristic(childCrates)
                 if h == float('inf'):
                     continue
 
-                bestG[child] = newG
-                parent[child] = (state, moveChar)
-
+                bestG[childKey] = newG
+                parent[childKey] = (key, segment)
                 counter += 1
 
                 heapq.heappush(frontier, (newG + h, counter, newG, child))
@@ -194,17 +196,16 @@ class Solver:
                 for cell, d in table.items():
                     self.minDist[cell] = min(d, self.minDist.get(cell, float('inf')))
 
-    def rebuildPath(self, parent, goalState):
-        moves = []
-        state = goalState
+    def rebuildPath(self, parent, goalKey):
+        pieces = []
+        key = goalKey
 
-        while parent[state] is not None:
-            previousState, moveChar = parent[state]
-            moves.append(moveChar)
-            state = previousState
+        while parent[key] is not None:
+            key, segment = parent[key]
+            pieces.append(segment)
 
-        moves.reverse()
-        return ''.join(moves)
+        pieces.reverse()
+        return ''.join(pieces)
 
     def findDeadSquares(self):
         for row in range(self.height):
@@ -213,6 +214,56 @@ class Solver:
 
                     if cell not in self.walls and cell not in self.minDist:
                         self.dead.add(cell)
+
+    def reachable(self, player, crates):
+        cameFrom = {player: None}
+        queue = deque([player])
+        while queue:
+            cell = queue.popleft()
+            for char, d_row, d_col in MOVES:
+                nxt = (cell[0] + d_row, cell[1] + d_col)
+
+                if nxt in cameFrom or nxt in self.walls or nxt in crates:
+                    continue
+
+                cameFrom[nxt] = (cell, char)
+                queue.append(nxt)
+
+        return cameFrom
+
+    def walkTo(self, cameFrom, target):
+        chars = []
+        cell = target
+
+        while cameFrom[cell] is not None:
+            cell, char = cameFrom[cell]
+            chars.append(char)
+
+        return "".join(reversed(chars))
+
+    def canonicalKey(self, reach, crates):
+        return (min(reach), crates)
+
+    def pushSuccessors(self, crates, reach):
+        result = []
+        for crate in crates:
+            for char, d_row, d_col in MOVES:
+                behind = (crate[0] - d_row, crate[1] - d_col)
+                if behind not in reach:
+                    continue
+
+                dest = (crate[0] + d_row, crate[1] + d_col)
+                if dest in self.walls or dest in crates:
+                    continue
+
+                newCrates = (crates - {crate}) | {dest}
+                if not self.isSafePush(dest, newCrates):
+                    continue
+
+                segment = self.walkTo(reach, behind) + char
+                result.append((segment, (crate, newCrates)))
+
+        return result
 
 
 class SokoBot:
