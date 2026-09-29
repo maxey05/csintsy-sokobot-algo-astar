@@ -9,14 +9,15 @@ MOVES = (('u', -1, 0),
          ('r', 0, 1))
 
 class Solver:
-    def __init__(self, width, height, walls, goals, dead=None):
+    def __init__(self, width, height, walls, goals):
         self.width = width
         self.height = height
         self.walls = walls
         self.goals = goals
-        self.dead = dead or set()
+        self.dead = set()
         self.minDist = {}
         self.buildDistanceTable()
+        self.findDeadSquares()
 
     def successors(self, player, crates):
         result = []
@@ -33,7 +34,11 @@ class Solver:
                 beyond = (target[0] + d_row, target[1] + d_col)
                 if beyond in self.walls or beyond in crates:
                     continue
+
                 newCrates = (crates - {target}) | {beyond}
+                if not self.isSafePush(beyond, newCrates):
+                    continue
+
                 newState = (target, newCrates)
                 result.append((char, newState))
 
@@ -144,14 +149,50 @@ class Solver:
 
         return True
 
-    def buildDistanceTable(self):
-        for goal in self.goals:
-            table = self.bfsFromGoal(goal)
-            for cell, d in table.items():
-                self.minDist[cell] = min(d, self.minDist.get(cell, float('inf')))
+    def isCorner(self, cell):
+        row, col = cell
+        vertCheck = False
+        horiCheck = False
+
+        if (row - 1, col) in self.walls or (row + 1, col) in self.walls:
+            vertCheck = True
+        if (row, col - 1) in self.walls or (row, col + 1) in self.walls:
+            horiCheck = True
+
+        if vertCheck and horiCheck:
+            return True
+        else:
+            return False
 
     def isGoal(self, crates):
         return crates <= self.goals
+
+    def isFrozenBlock(self, pos, crates):
+        row, col = pos
+        for i in (-1, 0):
+            for j in (-1, 0):
+                block = (row + i, col + j), (row + i, col + j + 1), (row + i + 1, col + j), (row + i + 1, col + j + 1)
+
+                if not all(c in self.walls or c in crates for c in block):
+                    continue
+                if any(c in crates and c not in self.goals for c in block):
+                    return True
+
+        return False
+
+    def isSafePush(self, dest, newCrates):
+        if dest in self.dead:
+            return False
+        if self.isFrozenBlock(dest, newCrates):
+            return False
+
+        return True
+
+    def buildDistanceTable(self):
+            for goal in self.goals:
+                table = self.bfsFromGoal(goal)
+                for cell, d in table.items():
+                    self.minDist[cell] = min(d, self.minDist.get(cell, float('inf')))
 
     def rebuildPath(self, parent, goalState):
         moves = []
@@ -164,6 +205,14 @@ class Solver:
 
         moves.reverse()
         return ''.join(moves)
+
+    def findDeadSquares(self):
+        for row in range(self.height):
+                for col in range(self.width):
+                    cell = (row, col)
+
+                    if cell not in self.walls and cell not in self.minDist:
+                        self.dead.add(cell)
 
 
 class SokoBot:
